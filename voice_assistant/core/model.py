@@ -1,3 +1,23 @@
+"""
+For this voice assistant system, we are using most advanced RNN model : Transformers.
+In particular, we are applying the Streaming Transformers from the paper 'Wake Word Detection with Streaming Transformers' [1]
+
+Bibliography
+@article{wang2021wake,
+      title={Wake Word Detection with Streaming Transformers}, 
+      author={Yiming Wang and Hang Lv and Daniel Povey and Lei Xie and Sanjeev Khudanpur},
+      journal={ICASSP 2021 - 2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
+      year={2021}
+}
+
+Some parts of this code is from Michael Nguyen:
+https://github.com/LearnedVector/A-Hackers-AI-Voice-Assistant.git
+
+and from Aladdin Persson:
+https://github.com/aladdinpersson/Machine-Learning-Collection.git
+"""
+
+
 from torch.functional import Tensor
 from torch.nn import Dropout, Linear, LSTM, LayerNorm, Module, ReLU, Sequential
 
