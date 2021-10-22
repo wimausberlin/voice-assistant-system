@@ -55,7 +55,7 @@ class WakeWordData(Dataset):
     def __init__(self, json_path: str, sample_rate: int = 8000, valid: bool = False) -> None:
         super(WakeWordData, self).__init__()
         self.sample_rate = sample_rate
-        self.data = pd.read_json(json_path,lines=True)
+        self.data = pd.read_json(json_path, lines=True)
         if valid:
             self.audio_transform = T.MFCC(sample_rate)
         else:
@@ -72,7 +72,7 @@ class WakeWordData(Dataset):
             idx = idx.item()
         file_path = self.data.key.iloc[idx]
         waveform, sample_rate = torchaudio.load(file_path)
-        if sample_rate>self.sample_rate:
+        if sample_rate > self.sample_rate:
             waveform = T.Resample(sample_rate, self.sample_rate)(waveform)
         mfcc = self.audio_transform(waveform)
         label = self.data.label.iloc[idx]
@@ -91,20 +91,20 @@ def collate_fn(data: List[Tuple[torch.Tensor, int]]) -> Tuple[List[torch.Tensor]
     labels = torch.Tensor(labels)
     return mfccs, labels
 
-def plot_spectrogram(spec, title=None, ylabel='freq_bin', aspect='auto', xmax=None):
-  fig, axs = plt.subplots(1, 1)
-  axs.set_title(title or 'Spectrogram (db)')
-  axs.set_ylabel(ylabel)
-  axs.set_xlabel('frame')
-  im = axs.imshow(librosa.power_to_db(spec), origin='lower', aspect=aspect)
-  if xmax:
-    axs.set_xlim((0, xmax))
-  fig.colorbar(im, ax=axs)
-  plt.show()
 
+def plot_spectrogram(spec, title: str = None, ylabel: str = 'freq_bin', aspect: str = 'auto', xmax: float = None):
+    fig, axs = plt.subplots(1, 1)
+    axs.set_title(title or 'Spectrogram (db)')
+    axs.set_ylabel(ylabel)
+    axs.set_xlabel('frame')
+    im = axs.imshow(librosa.power_to_db(spec), origin='lower', aspect=aspect)
+    if xmax:
+        axs.set_xlim((0, xmax))
+    fig.colorbar(im, ax=axs)
+    plt.show()
 
-def test_mfcc(file_path):
-    waveform, sample_rate = torchaudio.load(file_path)
-    mfcc_tranf = T.MFCC(sample_rate)
-    mfcc=mfcc_tranf(waveform)
-    plot_spectrogram(mfcc[0])
+def test_wakeWordData():
+    data_f = WakeWordData("../../../train.json")
+    data = [data_f.__getitem__(1)]
+    m, l = collate_fn(data)
+    plot_spectrogram(m[0])
