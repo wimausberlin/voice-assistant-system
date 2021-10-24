@@ -1,10 +1,14 @@
-from model import TransformerBlock
+from dataset import WakeWordData, collate_fn
+from model import LSTMBinaryClassifier, TransformerBlock
 from sklearn.metrics import classification_report
-from torch.nn import Module
+from torch.utils.data import DataLoader
 from typing import List, Tuple
+from tqdm import tqdm
 
+import os
 import torch
-import torchaudio
+import torch.optim as optim
+import torch.nn as nn
 
 
 def binary_accuracy(preds, y):
@@ -14,20 +18,14 @@ def binary_accuracy(preds, y):
     return acc
 
 
-def save_checkpoint(checkpoint_path: str, model: Module, optimizer: torch.optim, scheduler, model_params, epoch: str = None):
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict()
-    }, checkpoint_path)
-
-
 @torch.no_grad()
-def test(test_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: Module, device, epoch: int):
+def test(test_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module, device, epoch: int):
     print(f"starting test for epoch {epoch}")
     accs = []
     preds = []
     labels = []
-    for idx, (mfcc, label) in enumerate(test_loader):
+    pbar = tqdm(test_loader, desc="TEST")
+    for (mfcc, label) in pbar:
         mfcc, label = mfcc.to(device), label.to(device)
         output = model(mfcc)
         pred = torch.sigmoid(output)
@@ -37,21 +35,22 @@ def test(test_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: Module, de
         preds.append(torch.flatten(torch.round(pred)).cpu())
         labels.append(torch.flatten(label).cpu())
 
-        print("Epoch: {},  Iteration: {}/{},  accuracy: {}".format(epoch, idx,
-              len(test_loader), acc, end='\n'))
-        average_acc = sum(accs)/len(accs)
+        #print("Epoch: {},  Iteration: {}/{},  accuracy: {}".format(epoch, idx,
+        #      len(test_loader), acc, end='\n'))
+    average_acc = sum(accs)/len(accs)
     print('Average test Accuracy:', average_acc, "\n")
     report = classification_report(labels, preds)
     print(report)
     return average_acc, report
 
 
-def train(train_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: Module, optimizer: torch.optim, loss_fct: torch.nn, device, epoch: int):
+def train(train_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module, optimizer: torch.optim, loss_fct: torch.nn, device, epoch: int):
     print(f"starting train for epoch {epoch}")
     losses = []
     preds = []
     labels = []
-    for idx, (mfcc, label) in enumerate(train_loader):
+    pbar = tqdm(train_loader, desc="TRAIN")
+    for (mfcc, label) in pbar:
         mfcc, label = mfcc.to(device), label.to(device)
         optimizer.zero_grad()
         output = model(mfcc)
@@ -59,16 +58,87 @@ def train(train_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: Module, 
         loss.backward()
         optimizer.step()
         pred = torch.sigmoid(output)
+        acc = binary_accuracy(pred, label)
 
         losses.append(loss)
         preds.append(torch.flatten(torch.round(pred).cpu()))
         labels.append(torch.flatten(label).cpu())
 
-        print("Epoch: {},  Iteration: {}/{},  loss:{}".format(epoch,
-              idx, len(train_loader), loss))
+        #print("Epoch: {},  Iteration: {}/{},  loss:{}".format(epoch,
+        #      idx, len(train_loader), loss))
+        pbar.set_postfix(loss=loss,acc=acc)
     avg_train_loss = sum(losses)/len(losses)
     acc = binary_accuracy(torch.Tensor(preds), torch.Tensor(labels))
     print('avg train loss:', avg_train_loss, "avg train acc", acc)
     report = classification_report(labels, preds)
     print(report)
     return acc, report
+
+
+def main(args):
+    device = torch.device(
+        'cuda' if not args.no_cuda and torch.cuda.is_available() else 'cpu')
+
+    """Create dataset and net"""
+    train_dataset = WakeWordData(
+        data_json=args.train_data_json, sample_rate=args.sample_rate, valid=False)
+    test_dataset = WakeWordData(
+        data_json=args.test_data_json, sample_rate=args.sample_rate, valid=True)
+
+    train_loader = DataLoader(dataset=train_dataset,
+                              batch_size=args.batch_size,
+                              shuffle=True,
+                              collate_fn=collate_fn)
+    test_loader = DataLoader(dataset=test_dataset,
+                             batch_size=args.eval_batch_size,
+                             shuffle=True,
+                             collate_fn=collate_fn)
+
+    "Model init"
+    model_param = {"feature_size": 40, "hidden_size": args.hidden_size,
+                   "num_layers": 1, "num_classes": 1, "dropout": 0.1}
+    model_lstm = LSTMBinaryClassifier(**model_param)
+    model_lstm = model_lstm.to(device)
+
+    optimizer = optim.AdamW(model_lstm.parameters(),
+                            lr=args.lr, weight_decay=args.decay)
+    criterion = nn.CrossEntropyLoss().to(device)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='max', factor=0.5, patience=2)
+
+    """Training init"""
+    best_train_acc, best_train_report = 0, None
+    best_test_acc, best_test_report = 0, None
+
+    for epoch in tqdm(range(args.epoch), desc="Epoch"):
+        train_acc, train_report = train(
+            train_loader, model_lstm, optimizer, criterion, device, epoch)
+        test_acc, test_report = test(test_loader, model_lstm, device, epoch)
+
+        # record best train and test
+        if train_acc > best_train_acc:
+            best_train_acc = train_acc
+        if test_acc > best_test_acc:
+            best_test_acc = test_acc
+
+        # saves checkpoint if metrics are better than last
+        if args.save_checkpoint_path and test_acc >= best_test_acc:
+            checkpoint_path = os.path.join(
+                args.save_checkpoint_path, args.model_name + ".pt")
+            print("found best checkpoint. saving model as", checkpoint_path)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model_lstm.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict()
+            }, checkpoint_path)
+            best_train_report = train_report
+            best_test_report = test_report
+
+        scheduler.step(train_acc)
+
+    print("Done Training...")
+    print("Best Model Saved to", checkpoint_path)
+    print("\nTrain Report \n")
+    print(best_train_report)
+    print("\nTest Report\n")
+    print(best_test_report)
