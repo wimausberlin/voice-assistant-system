@@ -1,3 +1,4 @@
+from ast import parse
 from dataset import WakeWordData, collate_fn
 from model import LSTMBinaryClassifier, TransformerBlock
 from sklearn.metrics import classification_report
@@ -5,13 +6,14 @@ from torch.utils.data import DataLoader
 from typing import List, Tuple
 from tqdm import tqdm
 
+import argparse
 import os
 import torch
 import torch.optim as optim
 import torch.nn as nn
 
 
-def binary_accuracy(preds, y):
+def binary_accuracy(preds: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     # round predictions to the closest integer
     rounded_preds = torch.round(preds)
     acc = rounded_preds.eq(y.view_as(rounded_preds)).sum().item() / len(y)
@@ -19,7 +21,7 @@ def binary_accuracy(preds, y):
 
 
 @torch.no_grad()
-def test(test_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module, device, epoch: int):
+def test(test_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module, device, epoch: int) -> Tuple[torch.Tensor, str]:
     print(f"starting test for epoch {epoch}")
     accs = []
     preds = []
@@ -35,7 +37,7 @@ def test(test_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module,
         preds.append(torch.flatten(torch.round(pred)).cpu())
         labels.append(torch.flatten(label).cpu())
 
-        #print("Epoch: {},  Iteration: {}/{},  accuracy: {}".format(epoch, idx,
+        # print("Epoch: {},  Iteration: {}/{},  accuracy: {}".format(epoch, idx,
         #      len(test_loader), acc, end='\n'))
     average_acc = sum(accs)/len(accs)
     print('Average test Accuracy:', average_acc, "\n")
@@ -44,7 +46,7 @@ def test(test_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module,
     return average_acc, report
 
 
-def train(train_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module, optimizer: torch.optim, loss_fct: torch.nn, device, epoch: int):
+def train(train_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module, optimizer: torch.optim, loss_fct: torch.nn, device, epoch: int) -> Tuple[torch.Tensor, str]:
     print(f"starting train for epoch {epoch}")
     losses = []
     preds = []
@@ -64,9 +66,9 @@ def train(train_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Modul
         preds.append(torch.flatten(torch.round(pred).cpu()))
         labels.append(torch.flatten(label).cpu())
 
-        #print("Epoch: {},  Iteration: {}/{},  loss:{}".format(epoch,
+        # print("Epoch: {},  Iteration: {}/{},  loss:{}".format(epoch,
         #      idx, len(train_loader), loss))
-        pbar.set_postfix(loss=loss,acc=acc)
+        pbar.set_postfix(loss=loss, acc=acc)
     avg_train_loss = sum(losses)/len(losses)
     acc = binary_accuracy(torch.Tensor(preds), torch.Tensor(labels))
     print('avg train loss:', avg_train_loss, "avg train acc", acc)
@@ -75,7 +77,7 @@ def train(train_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Modul
     return acc, report
 
 
-def main(args):
+def main(args) -> None:
     device = torch.device(
         'cuda' if not args.no_cuda and torch.cuda.is_available() else 'cpu')
 
@@ -85,14 +87,18 @@ def main(args):
     test_dataset = WakeWordData(
         data_json=args.test_data_json, sample_rate=args.sample_rate, valid=True)
 
+    kwargs = {'num_workers': args.num_workers} if not args.no_cuda else {}
+
     train_loader = DataLoader(dataset=train_dataset,
                               batch_size=args.batch_size,
                               shuffle=True,
-                              collate_fn=collate_fn)
+                              collate_fn=collate_fn,
+                              **kwargs)
     test_loader = DataLoader(dataset=test_dataset,
-                             batch_size=args.eval_batch_size,
+                             batch_size=args.batch_size,
                              shuffle=True,
-                             collate_fn=collate_fn)
+                             collate_fn=collate_fn,
+                             **kwargs)
 
     "Model init"
     model_param = {"feature_size": 40, "hidden_size": args.hidden_size,
@@ -123,22 +129,51 @@ def main(args):
 
         # saves checkpoint if metrics are better than last
         if args.save_checkpoint_path and test_acc >= best_test_acc:
-            checkpoint_path = os.path.join(
-                args.save_checkpoint_path, args.model_name + ".pt")
-            print("found best checkpoint. saving model as", checkpoint_path)
+            print("found best checkpoint. saving model as",
+                  args.save_checkpoint_path)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model_lstm.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict()
-            }, checkpoint_path)
+            }, args.save_checkpoint_path)
             best_train_report = train_report
             best_test_report = test_report
 
         scheduler.step(train_acc)
 
     print("Done Training...")
-    print("Best Model Saved to", checkpoint_path)
+    print("Best Model Saved to", args.save_checkpoint_path)
     print("\nTrain Report \n")
     print(best_train_report)
     print("\nTest Report\n")
     print(best_test_report)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="""
+        Script to train the Wake Word Detection and save the model
+        """,
+                                     formatter_class=argparse.RawTextHelpFormatter
+                                     )
+    parser.add_argument('--sample_rate', type=int, default=8000,
+                        help='the number of samples collected per second, default at 8000')
+    parser.add_argument('--epochs', type=int, default=100,
+                        help='epoch size')
+    parser.add_argument('--batch_size', type=int, default=32,
+                        help='size of batch')
+    parser.add_argument('--lr', type=float, default=1e-3, help="learning rate")
+    parser.add_argument('--save_checkpoint_path', type=str, default=None,
+                        help='path to save the train model')
+    parser.add_argument('--train_data_json', type=str, default=None, required=True,
+                        help='path to train dat json file')
+    parser.add_argument('--test_data_json', type=str, default=None, required=True,
+                        help='path to train dat json file')
+    parser.add_argument('--no_cuda', action='store_true', default=False,
+                        help='disables CUDA training')
+    parser.add_argument('--num_workers', type=int, default=1,
+                        help='number of data loading workers')
+    parser.add_argument('--hidden_size', type=int, default=128,
+                        help='number of hidden layers')
+    args=parser.parse_args()
+
+    main(args)
