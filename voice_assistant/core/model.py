@@ -32,19 +32,19 @@ class LSTMBinaryClassifier(Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.dropout = dropout
+        self.layernorm = LayerNorm(feature_size)
         self.lstm = LSTM(
             input_size=feature_size,
-            hidden_size=feature_size,
+            hidden_size=hidden_size,
             num_layers=num_layers,   
             dropout=self.dropout,
         )   
-        self.classifier = Linear(feature_size, num_classes)
+        self.classifier = Linear(hidden_size, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.layernorm(x)
         out, (hn, cn) = self.lstm(x)
         x = self.classifier(hn[-1])
-        x = self.classifier(out)
         return x
 
 class SelfAttention(Module):

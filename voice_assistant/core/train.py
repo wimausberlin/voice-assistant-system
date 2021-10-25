@@ -83,9 +83,9 @@ def main(args) -> None:
 
     """Create dataset and net"""
     train_dataset = WakeWordData(
-        data_json=args.train_data_json, sample_rate=args.sample_rate, valid=False)
+        json_path=args.train_data_json, sample_rate=args.sample_rate, valid=False)
     test_dataset = WakeWordData(
-        data_json=args.test_data_json, sample_rate=args.sample_rate, valid=True)
+        json_path=args.test_data_json, sample_rate=args.sample_rate, valid=True)
 
     kwargs = {'num_workers': args.num_workers} if not args.no_cuda else {}
 
@@ -107,7 +107,7 @@ def main(args) -> None:
     model_lstm = model_lstm.to(device)
 
     optimizer = optim.AdamW(model_lstm.parameters(),
-                            lr=args.lr, weight_decay=args.decay)
+                            lr=args.lr, weight_decay=0.5)  # args.decay)
     criterion = nn.CrossEntropyLoss().to(device)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='max', factor=0.5, patience=2)
@@ -116,7 +116,7 @@ def main(args) -> None:
     best_train_acc, best_train_report = 0, None
     best_test_acc, best_test_report = 0, None
 
-    for epoch in tqdm(range(args.epoch), desc="Epoch"):
+    for epoch in tqdm(range(args.epochs), desc="Epoch"):
         train_acc, train_report = train(
             train_loader, model_lstm, optimizer, criterion, device, epoch)
         test_acc, test_report = test(test_loader, model_lstm, device, epoch)
@@ -174,6 +174,6 @@ if __name__ == "__main__":
                         help='number of data loading workers')
     parser.add_argument('--hidden_size', type=int, default=128,
                         help='number of hidden layers')
-    args=parser.parse_args()
+    args = parser.parse_args()
 
     main(args)
