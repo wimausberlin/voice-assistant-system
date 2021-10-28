@@ -87,7 +87,6 @@ def collate_fn(data: List[Tuple[torch.Tensor, int]]) -> Tuple[List[torch.Tensor]
         labels.append(label)
 
     mfccs = torch.nn.utils.rnn.pad_sequence(mfccs, batch_first=True)
-    mfccs = mfccs.transpose(0, 1)
     labels = torch.Tensor(labels)
     return mfccs, labels
 

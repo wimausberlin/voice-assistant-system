@@ -15,14 +15,12 @@ import torch.nn as nn
 
 def binary_accuracy(preds: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     # round predictions to the closest integer
-    rounded_preds = torch.round(preds)
-    acc = rounded_preds.eq(y.view_as(rounded_preds)).sum().item() / len(y)
-    return acc
+    return (preds == y).sum() / len(y)
 
 
 @torch.no_grad()
 def test(test_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module, device, epoch: int) -> Tuple[torch.Tensor, str]:
-    print(f"starting test for epoch {epoch}")
+    #print(f"starting test for epoch {epoch}")
     accs = []
     preds = []
     labels = []
@@ -34,20 +32,20 @@ def test(test_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module,
         acc = binary_accuracy(pred, label)
 
         accs.append(acc)
-        preds.append(torch.flatten(torch.round(pred)).cpu())
-        labels.append(torch.flatten(label).cpu())
+        preds.append(pred.cpu())
+        labels.append(label.cpu())
 
         # print("Epoch: {},  Iteration: {}/{},  accuracy: {}".format(epoch, idx,
         #      len(test_loader), acc, end='\n'))
     average_acc = sum(accs)/len(accs)
-    print('Average test Accuracy:', average_acc, "\n")
-    report = classification_report(labels, preds)
-    print(report)
+    #print('Average test Accuracy:', average_acc, "\n")
+    report = "hello"#classification_report(torch.cat(labels), torch.cat(preds))
+    #print(report)
     return average_acc, report
 
 
 def train(train_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Module, optimizer: torch.optim, loss_fct: torch.nn, device, epoch: int) -> Tuple[torch.Tensor, str]:
-    print(f"starting train for epoch {epoch}")
+    #print(f"starting train for epoch {epoch}")
     losses = []
     preds = []
     labels = []
@@ -55,25 +53,24 @@ def train(train_loader: List[Tuple[torch.Tensor, torch.Tensor]], model: nn.Modul
     for (mfcc, label) in pbar:
         mfcc, label = mfcc.to(device), label.to(device)
         optimizer.zero_grad()
-        output = model(mfcc)
-        loss = loss_fct(torch.flatten(output), label)
+        pred = model(mfcc)
+        loss = loss_fct(pred, label)
         loss.backward()
         optimizer.step()
-        pred = torch.sigmoid(output)
-        acc = binary_accuracy(pred, label)
+        acc = binary_accuracy(pred, label).item()
 
-        losses.append(loss)
-        preds.append(torch.flatten(torch.round(pred).cpu()))
-        labels.append(torch.flatten(label).cpu())
+        losses.append(loss.item())
+        preds.append(pred.detach().cpu())
+        labels.append(label.detach().cpu())
 
         # print("Epoch: {},  Iteration: {}/{},  loss:{}".format(epoch,
         #      idx, len(train_loader), loss))
         pbar.set_postfix(loss=loss, acc=acc)
     avg_train_loss = sum(losses)/len(losses)
-    acc = binary_accuracy(torch.Tensor(preds), torch.Tensor(labels))
-    print('avg train loss:', avg_train_loss, "avg train acc", acc)
-    report = classification_report(labels, preds)
-    print(report)
+    acc = binary_accuracy(torch.cat(preds), torch.cat(labels))
+    #print('avg train loss:', avg_train_loss, "avg train acc", acc)
+    report = "hello"#classification_report(torch.cat(labels), torch.cat(preds))
+    #print(report)
     return acc, report
 
 
@@ -108,7 +105,7 @@ def main(args) -> None:
 
     optimizer = optim.AdamW(model_lstm.parameters(),
                             lr=args.lr, weight_decay=0.5)  # args.decay)
-    criterion = nn.CrossEntropyLoss().to(device)
+    criterion = nn.BCELoss().to(device)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='max', factor=0.5, patience=2)
 
@@ -129,8 +126,8 @@ def main(args) -> None:
 
         # saves checkpoint if metrics are better than last
         if args.save_checkpoint_path and test_acc >= best_test_acc:
-            print("found best checkpoint. saving model as",
-                  args.save_checkpoint_path)
+            #print("found best checkpoint. saving model as",
+            #      args.save_checkpoint_path)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model_lstm.state_dict(),
@@ -141,12 +138,12 @@ def main(args) -> None:
 
         scheduler.step(train_acc)
 
-    print("Done Training...")
-    print("Best Model Saved to", args.save_checkpoint_path)
-    print("\nTrain Report \n")
-    print(best_train_report)
-    print("\nTest Report\n")
-    print(best_test_report)
+    #print("Done Training...")
+    #print("Best Model Saved to", args.save_checkpoint_path)
+    #print("\nTrain Report \n")
+    #print(best_train_report)
+    #print("\nTest Report\n")
+    #print(best_test_report)
 
 
 if __name__ == "__main__":

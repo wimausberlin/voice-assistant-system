@@ -19,7 +19,7 @@ https://github.com/aladdinpersson/Machine-Learning-Collection.git
 
 
 from torch.functional import Tensor
-from torch.nn import Dropout, Linear, LSTM, LayerNorm, Module, ReLU, Sequential
+from torch.nn import Dropout, Linear, LSTM, LayerNorm, Module, ReLU, Sequential, Sigmoid
 
 import torch
 from torch.nn.modules import dropout
@@ -38,14 +38,16 @@ class LSTMBinaryClassifier(Module):
             hidden_size=hidden_size,
             num_layers=num_layers,   
             dropout=self.dropout,
+            batch_first=True,
         )   
-        self.classifier = Linear(hidden_size, num_classes)
+        self.classifier = Sequential(Linear(hidden_size, num_classes), Sigmoid())
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.layernorm(x)
-        out, (hn, cn) = self.lstm(x)
-        x = self.classifier(hn[-1])
-        return x
+        x, _ = self.lstm(x)
+        x = x[:, -1, :]
+        x = self.classifier(x)
+        return x.view(-1)
 
 class SelfAttention(Module):
     def __init__(self,embed_size:int,heads:int)->None:
