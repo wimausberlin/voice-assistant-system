@@ -18,11 +18,19 @@ https://github.com/aladdinpersson/Machine-Learning-Collection.git
 """
 
 
+from numpy.lib.arraypad import pad
 from torch.functional import Tensor
 from torch.nn import Dropout, Linear, LSTM, LayerNorm, Module, ReLU, Sequential, Sigmoid
+from torch.nn.modules import dropout, padding
+from torch.nn.modules.activation import Softmax
+from torch.nn.modules.conv import Conv2d
+from torch.nn.modules.flatten import Flatten
+from torch.nn.modules.pooling import MaxPool2d
+from torchsummary import summary
 
 import torch
-from torch.nn.modules import dropout
+
+
 
 
 class LSTMBinaryClassifier(Module):
@@ -120,8 +128,70 @@ class TransformerBlock(Module):
         out=self.dropout(self.norm2(forward+x))
         return out
 
+class CNNNetwork(Module):
+    def __init__(self):
+        super(CNNNetwork,self).__init__()
+        self.conv1=Sequential(
+            Conv2d(
+                in_channels=1,
+                out_channels=16,
+                kernel_size=3,
+                stride=1,
+                padding=2
+            ),
+            ReLU(),
+            MaxPool2d(kernel_size=2)
+        )
+        self.conv2=Sequential(
+            Conv2d(
+                in_channels=16,
+                out_channels=32,
+                kernel_size=3,
+                stride=1,
+                padding=2
+            ),
+            ReLU(),
+            MaxPool2d(kernel_size=2)
+        )
+        self.conv3=Sequential(
+            Conv2d(
+                in_channels=32,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding=2
+            ),
+            ReLU(),
+            MaxPool2d(kernel_size=2)
+        )
+        self.conv4=Sequential(
+            Conv2d(
+                in_channels=64,
+                out_channels=128,
+                kernel_size=3,
+                stride=1,
+                padding=2
+            ),
+            ReLU(),
+            MaxPool2d(kernel_size=2)
+        )
+        self.flatten=Flatten()
+        self.linear=Linear(128*3*5,2)
+        self.softmax=Softmax(dim=1)
+    def forward(self,x:torch.Tensor)->torch.Tensor:
+        x=self.conv1(x)
+        x=self.conv2(x)
+        x=self.conv3(x)
+        x=self.conv4(x)
+        x=self.flatten(x)
+        x=self.linear(x)
+        predictions=self.softmax(x)
+        return predictions
+
+
 def main():
-    pass
+    cnn=CNNNetwork()
+    summary(cnn,(1,64,44))
 
 if __name__=="__main__":
     main()
