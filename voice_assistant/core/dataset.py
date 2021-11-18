@@ -7,6 +7,7 @@ from scipy.fft._pocketfft.helper import _normalization
 from sonopy import power_spec, mel_spec, mfcc_spec, filterbanks
 from torch.functional import Tensor
 from torch.nn import Module, Sequential
+from torch.utils import data
 from torch.utils.data import Dataset
 from typing import List, Tuple
 
@@ -79,6 +80,34 @@ class WakeWordData(Dataset):
         return mfcc, int(label)
 
 
+class WakeWordDataset(Dataset):
+    def __init__(self, json_path: str, sample_rate: int = 8000, num_samples: int = 16000, audio_transformation: T = T.MelSpectrogram, device:str="cpu") -> None:
+        super().__init__()
+        self.data = pd.read_json(json_path, lines=True)
+        self.sample_rate = sample_rate
+        self.num_samples = num_samples
+        self.device=device
+        self.audio_transformation = audio_transformation.to(device)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, index) -> Tuple[torch.tensor, str]:
+        file_path = self.data.key.iloc[index]
+        label = self.data.label.iloc[index]
+        signal, sample_rate = torchaudio.load(file_path)
+        if sample_rate > self.sample_rate:
+            signal = T.Resample(sample_rate, self.sample_rate)(signal)
+        if signal.shape[1] > self.num_samples:
+            signal = signal[:, :self.num_samples]
+        elif signal.shape[1] < self.num_samples:
+            num_missing_samples = self.num_samples-signal.shape[1]
+            last_dim_padding = (0, num_missing_samples)
+            signal = torch.nn.functional.pad(signal, last_dim_padding)
+        signal = self.audio_transformation(signal)
+        return signal, label
+
+
 def collate_fn(data: List[Tuple[torch.Tensor, int]]) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
     mfccs, labels = [], []
     for d in data:
@@ -102,8 +131,20 @@ def plot_spectrogram(spec, title: str = None, ylabel: str = 'freq_bin', aspect: 
     fig.colorbar(im, ax=axs)
     plt.show()
 
+
 def test_wakeWordData():
     data_f = WakeWordData("../../../train.json")
     data = [data_f.__getitem__(1)]
     m, l = collate_fn(data)
     plot_spectrogram(m[0])
+
+
+def test_WakeWordDataset():
+    json_path = "../../../train.json"
+    transformation = T.MelSpectrogram(
+        sample_rate=8000, n_fft=1024, hop_length=512, n_mels=64)
+    datasetWakeWord = WakeWordDataset(
+        json_path, audio_transformation=transformation)
+    signal, label = datasetWakeWord.__getitem__(5)
+    return signal, label
+
