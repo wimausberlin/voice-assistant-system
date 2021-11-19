@@ -1,7 +1,7 @@
 from ast import parse
 from torch.functional import Tensor
 
-from torch.nn.modules.loss import BCELoss
+from torch.nn.modules.loss import BCELoss, CrossEntropyLoss
 from dataset import WakeWordDataset
 from model import CNNNetwork
 from torch.utils.data import DataLoader
@@ -25,14 +25,13 @@ def train(model:nn.Module,dataloader:Tuple[torch.tensor,torch.tensor],criterion,
     pbar = tqdm(dataloader, desc="TRAIN")
     for (input, label) in pbar:
         input, label = input.to(device), label.to(device)
-        print(label.size())
         pred = model(input)
         loss = criterion(pred, label)
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        acc = binary_accuracy(pred, label).item()
+        #acc = binary_accuracy(pred, label).item()
 
         losses.append(loss.item())
         preds.append(pred.detach().cpu())
@@ -40,13 +39,13 @@ def train(model:nn.Module,dataloader:Tuple[torch.tensor,torch.tensor],criterion,
 
         # print("Epoch: {},  Iteration: {}/{},  loss:{}".format(epoch,
         #      idx, len(train_loader), loss))
-        pbar.set_postfix(loss=loss, acc=acc)
+        pbar.set_postfix(loss=loss)
     avg_train_loss = sum(losses)/len(losses)
-    acc = binary_accuracy(torch.cat(preds), torch.cat(labels))
-    print('avg train loss:', avg_train_loss, "avg train acc", acc)
+    #acc = binary_accuracy(torch.cat(preds), torch.cat(labels))
+    #print('avg train loss:', avg_train_loss, "avg train acc", acc)
     #report = classification_report(torch.cat(labels), torch.cat(preds))
     #print(report)
-    return acc
+    #return acc
 
 def main(args) -> None:
     if (not args.no_cuda) and torch.cuda.is_available():
@@ -73,7 +72,7 @@ def main(args) -> None:
 
     model_cnn = CNNNetwork().to(device)
 
-    criterion = BCELoss().to(device)
+    criterion = CrossEntropyLoss().to(device)
     optimizer = optim.AdamW(model_cnn.parameters(), lr=args.lr)
 
     for epoch in tqdm(range(args.epochs), desc="Epoch"):
