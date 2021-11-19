@@ -147,3 +147,5 @@ def test_WakeWordDataset():
         json_path, audio_transformation=transformation)
     signal, label = datasetWakeWord.__getitem__(5)
     return signal, label
+
+print("test")
