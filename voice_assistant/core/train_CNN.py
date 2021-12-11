@@ -106,7 +106,7 @@ def main(args) -> None:
     # train model
         train(model_cnn, train_dataloader, criterion,
             optimizer, device, epoch)
-        test(model_cnn, train_dataloader, criterion,
+        test(model_cnn, test_dataloader, criterion,
             optimizer, device, epoch)
 
     # save model
