@@ -164,32 +164,34 @@ class CNNNetwork(Module):
             ReLU(),
             MaxPool2d(kernel_size=2)
         )
-        self.conv4=Sequential(
-            Conv2d(
-                in_channels=64,
-                out_channels=128,
-                kernel_size=3,
-                stride=1,
-                padding=2
-            ),
-            ReLU(),
-            MaxPool2d(kernel_size=2)
-        )
+        #self.conv4=Sequential(
+        #    Conv2d(
+        #        in_channels=64,
+        #        out_channels=128,
+        #        kernel_size=3,
+        #        stride=1,
+        #        padding=2
+        #    ),
+        #    ReLU(),
+        #    MaxPool2d(kernel_size=2)
+        #)
         self.flatten=Flatten()
-        self.linear=Linear(128*3*5,2)
+        self.linear=Linear(64*3*15,2)
         self.softmax=Softmax(dim=1)
     def forward(self,x:torch.Tensor)->torch.Tensor:
         x=self.conv1(x)
         x=self.conv2(x)
         x=self.conv3(x)
-        x=self.conv4(x)
+        #x=self.conv4(x)
         x=self.flatten(x)
+        #print(x.size())
+        #exit()
         x=self.linear(x)
         predictions=self.softmax(x)
         return predictions
 
 
-def main():
+def main()->None:
     cnn=CNNNetwork()
     summary(cnn,(1,64,44))
 
