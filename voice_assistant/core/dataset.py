@@ -3,6 +3,13 @@ Some parts of this code is from Michael Nguyen :
 https://github.com/LearnedVector/A-Hackers-AI-Voice-Assistant.git
 """
 
+import librosa
+import matplotlib.pyplot as plt
+import pandas as pd
+import torch
+import torchaudio
+import torchaudio.transforms as T
+
 from scipy.fft._pocketfft.helper import _normalization
 from sonopy import power_spec, mel_spec, mfcc_spec, filterbanks
 from torch.functional import Tensor
@@ -11,20 +18,11 @@ from torch.utils import data
 from torch.utils.data import Dataset
 from typing import List, Tuple
 
-import librosa
-import matplotlib
-import matplotlib.pyplot as plt
-import os
-import pandas as pd
-import torch
-import torchaudio
-import torchaudio.transforms as T
-
 
 class RandomCut(Module):
     """Augmentation technique that randomly cuts start or end of the audio"""
 
-    def __init__(self, max_cut: int = 10):
+    def __init__(self, max_cut: int = 10)->None:
         super(RandomCut, self).__init__()
         self.max_cut = max_cut
 
@@ -81,18 +79,18 @@ class WakeWordData(Dataset):
 
 
 class WakeWordDataset(Dataset):
-    def __init__(self, json_path: str, sample_rate: int = 8000, num_samples: int = 16000, audio_transformation: T = T.MelSpectrogram, device:str="cpu") -> None:
+    def __init__(self, json_path: str, sample_rate: int = 8000, num_samples: int = 16000, audio_transformation: T = T.MelSpectrogram, device: str = "cpu") -> None:
         super().__init__()
         self.data = pd.read_json(json_path, lines=True)
         self.sample_rate = sample_rate
         self.num_samples = num_samples
-        self.device=device
+        self.device = device
         self.audio_transformation = audio_transformation.to(device)
 
     def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self, index) -> Tuple[torch.tensor, str]:
+    def __getitem__(self, index:int) -> Tuple[torch.tensor, str]:
         file_path = self.data.key.iloc[index]
         label = self.data.label.iloc[index]
         signal, sample_rate = torchaudio.load(file_path)
@@ -120,7 +118,7 @@ def collate_fn(data: List[Tuple[torch.Tensor, int]]) -> Tuple[List[torch.Tensor]
     return mfccs, labels
 
 
-def plot_spectrogram(spec, title: str = None, ylabel: str = 'freq_bin', aspect: str = 'auto', xmax: float = None):
+def plot_spectrogram(spec, title: str = None, ylabel: str = 'freq_bin', aspect: str = 'auto', xmax: float = None)->None:
     fig, axs = plt.subplots(1, 1)
     axs.set_title(title or 'Spectrogram (db)')
     axs.set_ylabel(ylabel)
@@ -132,14 +130,14 @@ def plot_spectrogram(spec, title: str = None, ylabel: str = 'freq_bin', aspect: 
     plt.show()
 
 
-def test_wakeWordData():
+def test_wakeWordData()->None:
     data_f = WakeWordData("../../../train.json")
     data = [data_f.__getitem__(1)]
     m, l = collate_fn(data)
     plot_spectrogram(m[0])
 
 
-def test_WakeWordDataset():
+def test_WakeWordDataset()->None:
     json_path = "../../../train.json"
     transformation = T.MelSpectrogram(
         sample_rate=8000, n_fft=1024, hop_length=512, n_mels=64)

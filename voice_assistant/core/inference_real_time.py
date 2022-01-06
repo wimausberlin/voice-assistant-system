@@ -1,3 +1,4 @@
+from typing import Tuple
 import numpy as np
 import pyaudio
 import sys
@@ -28,7 +29,7 @@ def get_audio_input_stream(callback)->pyaudio.PyAudio:
         stream_callback=callback)
     return stream
 
-def callback(in_data:np.array,data:np.array,q:Queue,timeout:time,feed_samples:int,silence_threshold:int=100):
+def callback(in_data:np.array,data:np.array,q:Queue,timeout:time,feed_samples:int,silence_threshold:int=100)->Tuple[np.array,pyaudio.PyAudio]:
     global RUN
     if time.time() > timeout:
         RUN = False        
@@ -45,7 +46,7 @@ def callback(in_data:np.array,data:np.array,q:Queue,timeout:time,feed_samples:in
         q.put(data)
     return (in_data, pyaudio.paContinue)
 
-def main():
+def main()->None:
     global RUN
     inference=CNNNetworkInference()
     #Queue to communiate between the audio callback and main thread

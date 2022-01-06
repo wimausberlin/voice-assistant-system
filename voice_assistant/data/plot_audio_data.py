@@ -11,9 +11,9 @@ import numpy as np
 
 import librosa.display
 
-PATH="../../../sound/1/27.wav"#cv-valid-train/sample-000003.mp3"
+PATH="../../../sound/1/27.wav"
 
-def print_stats(waveform, sample_rate=None, src=None):
+def print_stats(waveform:torch.Tensor, sample_rate:int=None, src:int=None)->None:
   if src:
     print("-" * 10)
     print("Source:", src)
@@ -30,7 +30,7 @@ def print_stats(waveform, sample_rate=None, src=None):
   print(waveform)
   print()
 
-def plot_waveform(waveform, sample_rate, title="Waveform", xlim=None, ylim=None)->None:
+def plot_waveform(waveform:torch.Tensor, sample_rate:int, title:str="Waveform", xlim:int=None, ylim:int=None)->None:
   waveform = waveform.numpy()
 
   num_channels, num_frames = waveform.shape
@@ -51,7 +51,7 @@ def plot_waveform(waveform, sample_rate, title="Waveform", xlim=None, ylim=None)
   #figure.suptitle(title)
   plt.show()
 
-def get_spectrogram(waveform,sample_rate):
+def get_spectrogram(waveform:torch.Tensor,sample_rate:int)->T.MelSpectrogram:
   spectrogram = T.MelSpectrogram(
         sample_rate=sample_rate,
         n_fft=1024,
@@ -60,7 +60,7 @@ def get_spectrogram(waveform,sample_rate):
     )
   return spectrogram(waveform)
 
-def plot_spectrogram(spec, title: str = None, ylabel: str = 'freq_bin', aspect: str = 'auto', xmax: float = None)->None:
+def plot_spectrogram(spec:torch.Tensor, title: str = None, ylabel: str = 'freq_bin', aspect: str = 'auto', xmax: float = None)->None:
     fig, axs = plt.subplots(1, 1)
     #axs.set_title(title or 'Spectrogram (db)')
     axs.set_ylabel(ylabel)
@@ -71,7 +71,7 @@ def plot_spectrogram(spec, title: str = None, ylabel: str = 'freq_bin', aspect: 
     fig.colorbar(im, ax=axs)
     plt.show()
 
-def plot_librosa():
+def plot_librosa()->None:
   y, sr = librosa.load(PATH)
   D = librosa.stft(y)  # STFT of y
   S_db = librosa.amplitude_to_db(np.abs(D), ref=np.max)
@@ -79,7 +79,6 @@ def plot_librosa():
   librosa.display.specshow(S_db)
   plt.colorbar()
   plt.show()
-
 
 
 def main(path:str=PATH)->None:
